@@ -29,8 +29,7 @@ class UserSearchQueryBuilder:
         self,
         field_boosts: Dict[str, float],
         fuzziness: str = "AUTO",
-        field_fuzziness: Optional[Dict[str, str]] = None,
-        field_min_scores: Optional[Dict[str, float]] = None
+        field_fuzziness: Optional[Dict[str, str]] = None
     ):
         """
         Initialize query builder.
@@ -39,17 +38,15 @@ class UserSearchQueryBuilder:
             field_boosts: Dictionary mapping field names to boost values
             fuzziness: Global fuzziness level (AUTO, 0, 1, 2)
             field_fuzziness: Optional dict of field-specific fuzziness overrides
-            field_min_scores: Optional dict of field-specific min_score thresholds
         """
         self.field_boosts = field_boosts
         self.fuzziness = fuzziness
         self.field_fuzziness = field_fuzziness or {}
-        self.field_min_scores = field_min_scores or {}
 
         logger.debug(
             f"UserSearchQueryBuilder initialized with {len(field_boosts)} fields, "
             f"global_fuzziness={fuzziness}, "
-            f"field_overrides={len(self.field_fuzziness)} fuzziness, {len(self.field_min_scores)} min_scores"
+            f"field_overrides={len(self.field_fuzziness)} fuzziness"
         )
     
     def build_search_query(
@@ -149,15 +146,30 @@ class UserSearchQueryBuilder:
             })
 
         if email:
-            field_queries.append({
-                "match": {
-                    "user_email": {
-                        "query": email,
-                        "fuzziness": self.get_field_fuzziness("user_email"),  # Use field-specific fuzziness
-                        "boost": self.field_boosts.get("user_email", 1.0)
+            email_fuzziness = self.get_field_fuzziness("user_email")
+            email_boost = self.field_boosts.get("user_email", 1.0)
+
+            # For fuzziness=0, use match with operator=and to require exact matching
+            if email_fuzziness == "0" or email_fuzziness == 0:
+                field_queries.append({
+                    "match": {
+                        "user_email": {
+                            "query": email,
+                            "operator": "and",  # All terms must match
+                            "boost": email_boost
+                        }
                     }
-                }
-            })
+                })
+            else:
+                field_queries.append({
+                    "match": {
+                        "user_email": {
+                            "query": email,
+                            "fuzziness": email_fuzziness,
+                            "boost": email_boost
+                        }
+                    }
+                })
 
         if contact:
             field_queries.append({
@@ -360,25 +372,13 @@ class UserSearchQueryBuilder:
         """
         return self.field_fuzziness.get(field_name, self.fuzziness)
 
-    def get_field_min_score(self, field_name: str, global_min_score: float = 0.0) -> float:
-        """
-        Get effective min_score for a specific field.
 
-        Args:
-            field_name: Name of the field
-            global_min_score: Global min_score threshold
-
-        Returns:
-            Min score value (field-specific or global)
-        """
-        return self.field_min_scores.get(field_name, global_min_score)
 
 
 def create_query_builder(
     field_boosts: Dict[str, float],
     fuzziness: str = "AUTO",
-    field_fuzziness: Optional[Dict[str, str]] = None,
-    field_min_scores: Optional[Dict[str, float]] = None
+    field_fuzziness: Optional[Dict[str, str]] = None
 ) -> UserSearchQueryBuilder:
     """
     Factory function to create UserSearchQueryBuilder instance.
@@ -387,7 +387,6 @@ def create_query_builder(
         field_boosts: Dictionary mapping field names to boost values
         fuzziness: Global fuzziness level (AUTO, 0, 1, 2)
         field_fuzziness: Optional dict of field-specific fuzziness overrides
-        field_min_scores: Optional dict of field-specific min_score thresholds
 
     Returns:
         UserSearchQueryBuilder instance
@@ -395,7 +394,6 @@ def create_query_builder(
     return UserSearchQueryBuilder(
         field_boosts=field_boosts,
         fuzziness=fuzziness,
-        field_fuzziness=field_fuzziness,
-        field_min_scores=field_min_scores
+        field_fuzziness=field_fuzziness
     )
 

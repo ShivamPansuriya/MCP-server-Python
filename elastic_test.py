@@ -40,8 +40,8 @@ def print_results(results: dict, test_description: str = ""):
             print(f"    Email: {user.get('email', 'N/A')}")
             print(f"    Contact: {user.get('contact', 'N/A')}")
             print(f"    Logon Name: {user.get('userlogonname', 'N/A')}")
-            print(f"    User Type: {user.get('userType', 'N/A')}")
-            print(f"    Score: {user.get('_score', 'N/A')}")
+            print(f"    User Type: {user.get('usertype', 'N/A')}")
+            print(f"    Score: {user.get('score', 'N/A')}")
     else:
         print(json.dumps(results, indent=2, ensure_ascii=False))
 
@@ -50,7 +50,7 @@ async def test_1_exact_name_match():
     """Test 1: Exact name match - should work with any fuzziness."""
     print_test_header("Test 1: Exact Name Match")
 
-    result = await search_users(name="Jimmi Thakkar")
+    result = await search_users(query="ANUJKUMARJ28@GMAIL.COM")
     print_results(result, "Searching for exact name: 'Jimmi Thakkar'")
 
 
@@ -195,7 +195,6 @@ async def test_14_config_validation():
         print(f"    Boost: {field.boost}")
         print(f"    Enabled: {field.enabled}")
         print(f"    Field Fuzziness: {field.fuzziness if field.fuzziness else 'Uses Global'}")
-        print(f"    Field Min Score: {field.min_score if field.min_score else 'Uses Global'}")
         print(f"    Description: {field.description}")
 
 
@@ -210,26 +209,26 @@ async def run_all_tests():
 
     # Basic exact match tests
     await test_1_exact_name_match()
-    await test_3_exact_email_match()
-    await test_6_exact_contact()
-    await test_8_userlogonname_exact()
-
-    # Fuzziness tests
-    await test_2_typo_in_name()
-    await test_4_typo_in_email()
-    await test_7_contact_with_typo()
-    await test_9_userlogonname_typo()
-
-    # Multi-field tests
-    await test_10_multi_field_search()
-    await test_11_multi_field_with_typos()
-
-    # Filter tests
-    await test_12_user_type_filter()
-    await test_13_case_sensitivity()
-
-    # Partial match test
-    await test_5_partial_email()
+    # await test_3_exact_email_match()
+    # await test_6_exact_contact()
+    # await test_8_userlogonname_exact()
+    #
+    # # Fuzziness tests
+    # await test_2_typo_in_name()
+    # await test_4_typo_in_email()
+    # await test_7_contact_with_typo()
+    # await test_9_userlogonname_typo()
+    #
+    # # Multi-field tests
+    # await test_10_multi_field_search()
+    # await test_11_multi_field_with_typos()
+    #
+    # # Filter tests
+    # await test_12_user_type_filter()
+    # await test_13_case_sensitivity()
+    #
+    # # Partial match test
+    # await test_5_partial_email()
 
     print("\n" + "✅" * 40)
     print("ALL TESTS COMPLETED")

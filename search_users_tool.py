@@ -8,45 +8,30 @@ import logging
 from typing import Optional, Dict, Any
 
 from user_search_handler import get_search_handler
-from user_type_enum import UserType
 
 logger = logging.getLogger(__name__)
 
 
 async def search_users(
-    name: Optional[str] = None,
-    email: Optional[str] = None,
-    contact: Optional[str] = None,
-    userlogonname: Optional[str] = None,
-    contact2: Optional[str] = None,
-    userType: Optional[UserType] = None,
-    limit: int = 10,
-    minScore: Optional[float] = None
+    query: str,
+    limit: int = 3
 ) -> Dict[str, Any]:
     """
-    Search for users using fuzzy matching on specific fields.
+    Search for users using a simple query string across all enabled fields.
 
-    Searches user records by specific fields with fuzzy matching for typo tolerance.
-    At least one search field must be provided.
+    Searches user records across all enabled fields (name, email, contact, etc.)
+    and returns the top 3 most relevant results.
 
     Args:
-        name: Search by user's full name
-        email: Search by email address
-        contact: Search by primary contact number
-        userlogonname: Search by user login name
-        contact2: Search by secondary contact number
-        userType: Optional filter by user type. Valid values: "requester" or "technician"
-        limit: Maximum number of results to return (1-100, default: 10)
-        minScore: Minimum confidence score threshold. Only return users with score >= this value (e.g., 7.0)
+        query: Search query string (e.g., "ANUJKUMARJ28@GMAIL.COM", "John Doe", "9876543210")
+        limit: Maximum number of results to return (1-10, default: 3)
 
     Returns:
         Dictionary containing:
         - success: Boolean indicating if search was successful
-        - search_fields: Dictionary of search fields used
-        - user_type: The user type filter applied (if any)
+        - query: The search query used
         - total_hits: Total number of matching users
         - returned_count: Number of users returned in this response
-        - limit: The limit applied to results
         - users: List of user objects with fields:
             * id: User database ID
             * name: User's full name
@@ -59,69 +44,42 @@ async def search_users(
         - error: Error message (only present if success is False)
 
     Examples:
-        Search by name:
-        >>> search_users(name="John Doe")
-
         Search by email:
-        >>> search_users(email="john@example.com")
+        >>> search_users(query="ANUJKUMARJ28@GMAIL.COM")
 
-        Search by multiple fields:
-        >>> search_users(name="John", email="john@example.com")
+        Search by name:
+        >>> search_users(query="John Doe")
 
-        Search requesters only:
-        >>> search_users(name="John", userType=UserType.REQUESTER)
+        Search by contact:
+        >>> search_users(query="9876543210")
 
         Search with custom limit:
-        >>> search_users(name="Smith", limit=20)
-
-        Filter by minimum score:
-        >>> search_users(name="John", minScore=7.0)
+        >>> search_users(query="Smith", limit=5)
     """
     try:
-        # Validate at least one search field is provided
-        if not any([name, email, contact, userlogonname, contact2]):
+        # Validate query is provided
+        if not query or not query.strip():
             return {
                 "success": False,
-                "error": "At least one search field must be provided (name, email, contact, userlogonname, or contact2)",
-                "search_fields": {
-                    "name": name,
-                    "email": email,
-                    "contact": contact,
-                    "userlogonname": userlogonname,
-                    "contact2": contact2
-                },
-                "user_type": userType.value if userType else None,
+                "error": "Query parameter is required and cannot be empty",
+                "query": query,
                 "total_hits": 0,
                 "returned_count": 0,
                 "users": []
             }
 
         # Validate and normalize limit
-        if limit < 1 or limit > 100:
-            logger.warning(f"Invalid limit {limit}, clamping to range [1, 100]")
-            limit = max(1, min(limit, 100))
+        if limit < 1 or limit > 10:
+            logger.warning(f"Invalid limit {limit}, clamping to range [1, 10]")
+            limit = max(1, min(limit, 10))
 
-        # Convert enum to string value
-        user_type_value = userType.value if userType else None
-
-        logger.info(
-            f"search_users tool called: name={name}, email={email}, "
-            f"contact={contact}, userlogonname={userlogonname}, "
-            f"contact2={contact2}, userType={user_type_value}, limit={limit}, "
-            f"minScore={minScore}"
-        )
+        logger.info(f"search_users tool called: query='{query}', limit={limit}")
 
         # Get search handler and execute search
         handler = get_search_handler()
-        results = await handler.search_users_by_fields(
-            name=name,
-            email=email,
-            contact=contact,
-            userlogonname=userlogonname,
-            contact2=contact2,
-            user_type=user_type_value,
-            limit=limit,
-            min_score=minScore
+        results = await handler.search_users_by_query(
+            query=query,
+            limit=limit
         )
 
         logger.info(
@@ -136,14 +94,7 @@ async def search_users(
         return {
             "success": False,
             "error": str(e),
-            "search_fields": {
-                "name": name,
-                "email": email,
-                "contact": contact,
-                "userlogonname": userlogonname,
-                "contact2": contact2
-            },
-            "user_type": userType.value if userType else None,
+            "query": query,
             "total_hits": 0,
             "returned_count": 0,
             "users": []
@@ -154,14 +105,7 @@ async def search_users(
         return {
             "success": False,
             "error": f"Search failed: {str(e)}",
-            "search_fields": {
-                "name": name,
-                "email": email,
-                "contact": contact,
-                "userlogonname": userlogonname,
-                "contact2": contact2
-            },
-            "user_type": userType.value if userType else None,
+            "query": query,
             "total_hits": 0,
             "returned_count": 0,
             "users": []

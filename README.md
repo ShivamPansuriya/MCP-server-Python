@@ -10,6 +10,7 @@ A Model Context Protocol (MCP) server implementation using FastMCP that dynamica
 - **Graceful Degradation**: Falls back to static tools if API is unavailable
 - **Comprehensive Logging**: Detailed logging at INFO, DEBUG, WARNING, and ERROR levels
 - **Thread-Safe**: Concurrent requests from multiple users are handled safely
+- **Global Score Filtering**: Elasticsearch queries use global minScore threshold for result quality control
 
 ## Architecture
 
