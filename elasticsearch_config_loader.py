@@ -21,6 +21,17 @@ class SearchFieldConfig:
     boost: float
     enabled: bool
     description: str = ""
+    # Field-level overrides (optional)
+    fuzziness: Optional[str] = None  # Override global fuzziness for this field
+    min_score: Optional[float] = None  # Override global min_score for this field
+
+    def get_fuzziness(self, global_fuzziness: str) -> str:
+        """Get effective fuzziness (field-level or global)."""
+        return self.fuzziness if self.fuzziness is not None else global_fuzziness
+
+    def get_min_score(self, global_min_score: float) -> float:
+        """Get effective min_score (field-level or global)."""
+        return self.min_score if self.min_score is not None else global_min_score
 
 
 @dataclass
@@ -158,23 +169,33 @@ class ElasticsearchConfigLoader:
                 boost_elem = field_elem.find("boost")
                 enabled_elem = field_elem.find("enabled")
                 desc_elem = field_elem.find("description")
-                
+
+                # NEW: Parse field-level overrides
+                field_fuzziness_elem = field_elem.find("fuzziness")
+                field_min_score_elem = field_elem.find("minScore")
+
                 if name_elem is None or boost_elem is None:
                     logger.warning("Skipping field with missing name or boost")
                     continue
-                
+
                 name = name_elem.text.strip()
                 boost = float(boost_elem.text.strip())
                 enabled = enabled_elem.text.strip().lower() == "true" if enabled_elem is not None else True
                 description = desc_elem.text.strip() if desc_elem is not None else ""
-                
+
+                # NEW: Parse field-level fuzziness and min_score (optional)
+                field_fuzziness = field_fuzziness_elem.text.strip() if field_fuzziness_elem is not None else None
+                field_min_score = float(field_min_score_elem.text.strip()) if field_min_score_elem is not None else None
+
                 search_fields.append(SearchFieldConfig(
                     name=name,
                     boost=boost,
                     enabled=enabled,
-                    description=description
+                    description=description,
+                    fuzziness=field_fuzziness,  # NEW
+                    min_score=field_min_score   # NEW
                 ))
-                
+
             except Exception as e:
                 logger.warning(f"Error parsing field element: {e}. Skipping field.")
                 continue

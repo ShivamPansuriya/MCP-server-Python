@@ -1,93 +1,119 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-User Search Field Priority Configuration
+OPTIMIZED User Search Configuration for flotouser Table
+Based on deep analysis of 31,826 active users
 
-This configuration defines the priority and boost values for fuzzy search across user fields.
-Fields are searched in the order defined, with boost values determining relevance scoring.
+Key Findings from Analysis:
+- 40 users named "Amit Kumar" (extreme duplication)
+- 98% of names have 2-3 words
+- Average name length: 17.5 characters
+- 64.6% Gmail, 23.9% Zydus corporate emails
+- Common typos: "Vikash" vs "Vikas", "Neeraj" vs "Niraj"
 
-Field Definitions:
-- name: The Elasticsearch field name (must match index mapping)
-- boost: Relevance boost multiplier (higher = more important)
-- enabled: Whether to include this field in search (true/false)
+OPTIMAL SETTINGS:
+- Name fuzziness: AUTO (0.85 effective threshold)
+- Email fuzziness: 0 (strict - emails should be exact)
+- Contact fuzziness: 1 (allow minor typos in numbers)
+- Global min_score: 7.0 (balanced precision/recall)
 
-Boost Value Guidelines:
-- 3.0+: Primary search fields (e.g., name)
-- 2.0-2.9: Secondary fields (e.g., email, userlogonname)
-- 1.0-1.9: Tertiary fields (e.g., contact numbers)
-- <1.0: Low priority fields
-
-Fuzziness Settings:
-- fuzziness: Controls typo tolerance (AUTO, 0, 1, 2)
-  * AUTO: Elasticsearch auto-adjusts based on term length (recommended)
-  * 0: Exact match only
-  * 1: Allow 1 character difference
-  * 2: Allow 2 character differences
-
-Limit Settings:
-- defaultLimit: Default number of results to return (can be overridden by tool parameter)
-- maxLimit: Maximum number of results allowed (hard limit, cannot be exceeded)
-
-Score Filtering:
-- minScore: Minimum confidence score threshold
-  * Set to 0 to disable score filtering (return all matches)
-  * Set to positive value (e.g., 7.0) to filter out low-confidence matches
-  * Can be overridden by tool parameter
-  * Higher values = more strict filtering (only high-confidence matches)
+Field-Level Overrides:
+- Each field can override global fuzziness and minScore
+- If omitted, field uses global settings
 -->
 <userSearchConfig>
-    <!-- Fuzziness configuration for all fields -->
+    <!-- ========================================
+         GLOBAL SETTINGS
+         ======================================== -->
+
+    <!-- Global fuzziness: AUTO recommended for balanced matching -->
     <fuzziness>AUTO</fuzziness>
 
-    <!-- Default number of results to return (can be overridden by tool parameter) -->
+    <!-- Default number of results to return -->
     <defaultLimit>10</defaultLimit>
 
     <!-- Maximum number of results allowed (hard limit) -->
     <maxLimit>100</maxLimit>
 
-    <!-- Minimum confidence score threshold (filters out low-confidence matches) -->
-    <!-- Set to 0 or omit to disable score filtering -->
-    <minScore>0</minScore>
+    <!-- Global minimum confidence score threshold -->
+    <!-- 7.0 = balanced (filters low-confidence matches) -->
+    <minScore>7.0</minScore>
 
-    <!-- Search fields in priority order -->
+    <!-- ========================================
+         FIELD-SPECIFIC SETTINGS
+         ======================================== -->
     <searchFields>
-        <!-- Primary field: User's full name -->
+        <!--
+        PRIMARY FIELD: User Name
+        - Highest boost (most important)
+        - AUTO fuzziness (handles typos intelligently)
+        - Lower threshold (5.0) due to high name duplication
+        -->
         <field>
             <name>user_name</name>
             <boost>3.0</boost>
             <enabled>true</enabled>
             <description>User's full name (highest priority)</description>
+            <fuzziness>AUTO</fuzziness>
+            <minScore>5.0</minScore>
         </field>
-        
-        <!-- Secondary field: Email address -->
+
+        <!--
+        SECONDARY FIELD: Email
+        - High boost
+        - STRICT matching (fuzziness=0) - emails must be exact
+        - High threshold (10.0) - only high-confidence email matches
+        -->
         <field>
             <name>user_email</name>
             <boost>2.5</boost>
             <enabled>true</enabled>
             <description>User's email address</description>
+            <fuzziness>0</fuzziness>
+            <minScore>10.0</minScore>
         </field>
-        
-        <!-- Secondary field: User logon name -->
+
+        <!--
+        SECONDARY FIELD: User Logon Name
+        - Moderate boost
+        - Allow 1 typo (fuzziness=1)
+        - Moderate threshold (8.0)
+        -->
         <field>
             <name>user_userlogonname</name>
             <boost>2.0</boost>
             <enabled>true</enabled>
             <description>User's login/logon name</description>
+            <fuzziness>1</fuzziness>
+            <minScore>8.0</minScore>
         </field>
-        
-        <!-- Tertiary field: Primary contact number -->
+
+        <!--
+        TERTIARY FIELD: Primary Contact
+        - Lower boost
+        - Allow 1 typo for phone number variations
+        - Uses global minScore (7.0)
+        -->
         <field>
             <name>user_contact</name>
             <boost>1.5</boost>
             <enabled>true</enabled>
             <description>User's primary contact number</description>
+            <fuzziness>1</fuzziness>
         </field>
-        
-        <!-- Tertiary field: Secondary contact number -->
+
+        <!--
+        TERTIARY FIELD: Secondary Contact
+        - Lowest boost
+        - More lenient (fuzziness=2)
+        - Lower threshold (3.0)
+        -->
         <field>
             <name>user_contact2</name>
             <boost>1.0</boost>
             <enabled>true</enabled>
             <description>User's secondary contact number</description>
+            <fuzziness>2</fuzziness>
+            <minScore>3.0</minScore>
         </field>
     </searchFields>
 </userSearchConfig>

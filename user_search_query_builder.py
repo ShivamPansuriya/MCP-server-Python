@@ -14,34 +14,42 @@ logger = logging.getLogger(__name__)
 class UserSearchQueryBuilder:
     """
     Builds Elasticsearch queries for user search with fuzzy matching.
-    
+
     Supports:
     - Multi-field fuzzy search with configurable field boosting
     - UserType filtering (requester/technician)
-    - Configurable fuzziness level
+    - Configurable fuzziness level (global and per-field)
+    - Field-level min_score thresholds
     """
-    
+
     # Valid userType values
     VALID_USER_TYPES = {"requester", "technician"}
-    
+
     def __init__(
         self,
         field_boosts: Dict[str, float],
-        fuzziness: str = "AUTO"
+        fuzziness: str = "AUTO",
+        field_fuzziness: Optional[Dict[str, str]] = None,
+        field_min_scores: Optional[Dict[str, float]] = None
     ):
         """
         Initialize query builder.
-        
+
         Args:
             field_boosts: Dictionary mapping field names to boost values
-            fuzziness: Fuzziness level (AUTO, 0, 1, 2)
+            fuzziness: Global fuzziness level (AUTO, 0, 1, 2)
+            field_fuzziness: Optional dict of field-specific fuzziness overrides
+            field_min_scores: Optional dict of field-specific min_score thresholds
         """
         self.field_boosts = field_boosts
         self.fuzziness = fuzziness
-        
+        self.field_fuzziness = field_fuzziness or {}
+        self.field_min_scores = field_min_scores or {}
+
         logger.debug(
             f"UserSearchQueryBuilder initialized with {len(field_boosts)} fields, "
-            f"fuzziness={fuzziness}"
+            f"global_fuzziness={fuzziness}, "
+            f"field_overrides={len(self.field_fuzziness)} fuzziness, {len(self.field_min_scores)} min_scores"
         )
     
     def build_search_query(
@@ -134,7 +142,7 @@ class UserSearchQueryBuilder:
                 "match": {
                     "user_name": {
                         "query": name,
-                        "fuzziness": self.fuzziness,
+                        "fuzziness": self.get_field_fuzziness("user_name"),  # Use field-specific fuzziness
                         "boost": self.field_boosts.get("user_name", 1.0)
                     }
                 }
@@ -145,7 +153,7 @@ class UserSearchQueryBuilder:
                 "match": {
                     "user_email": {
                         "query": email,
-                        "fuzziness": self.fuzziness,
+                        "fuzziness": self.get_field_fuzziness("user_email"),  # Use field-specific fuzziness
                         "boost": self.field_boosts.get("user_email", 1.0)
                     }
                 }
@@ -156,7 +164,7 @@ class UserSearchQueryBuilder:
                 "match": {
                     "user_contact": {
                         "query": contact,
-                        "fuzziness": self.fuzziness,
+                        "fuzziness": self.get_field_fuzziness("user_contact"),  # Use field-specific fuzziness
                         "boost": self.field_boosts.get("user_contact", 1.0)
                     }
                 }
@@ -167,7 +175,7 @@ class UserSearchQueryBuilder:
                 "match": {
                     "user_userlogonname": {
                         "query": userlogonname,
-                        "fuzziness": self.fuzziness,
+                        "fuzziness": self.get_field_fuzziness("user_userlogonname"),  # Use field-specific fuzziness
                         "boost": self.field_boosts.get("user_userlogonname", 1.0)
                     }
                 }
@@ -178,7 +186,7 @@ class UserSearchQueryBuilder:
                 "match": {
                     "user_contact2": {
                         "query": contact2,
-                        "fuzziness": self.fuzziness,
+                        "fuzziness": self.get_field_fuzziness("user_contact2"),  # Use field-specific fuzziness
                         "boost": self.field_boosts.get("user_contact2", 1.0)
                     }
                 }
@@ -318,45 +326,76 @@ class UserSearchQueryBuilder:
     def validate_user_type(self, user_type: Optional[str]) -> Optional[str]:
         """
         Validate and normalize user_type value.
-        
+
         Args:
             user_type: User type to validate
-            
+
         Returns:
             Normalized user_type (lowercase) or None
-            
+
         Raises:
             ValueError: If user_type is invalid
         """
         if user_type is None:
             return None
-        
+
         user_type_lower = user_type.lower()
         if user_type_lower not in self.VALID_USER_TYPES:
             raise ValueError(
                 f"Invalid user_type: {user_type}. "
                 f"Must be one of: {', '.join(self.VALID_USER_TYPES)}"
             )
-        
+
         return user_type_lower
+
+    def get_field_fuzziness(self, field_name: str) -> str:
+        """
+        Get effective fuzziness for a specific field.
+
+        Args:
+            field_name: Name of the field
+
+        Returns:
+            Fuzziness value (field-specific or global)
+        """
+        return self.field_fuzziness.get(field_name, self.fuzziness)
+
+    def get_field_min_score(self, field_name: str, global_min_score: float = 0.0) -> float:
+        """
+        Get effective min_score for a specific field.
+
+        Args:
+            field_name: Name of the field
+            global_min_score: Global min_score threshold
+
+        Returns:
+            Min score value (field-specific or global)
+        """
+        return self.field_min_scores.get(field_name, global_min_score)
 
 
 def create_query_builder(
     field_boosts: Dict[str, float],
-    fuzziness: str = "AUTO"
+    fuzziness: str = "AUTO",
+    field_fuzziness: Optional[Dict[str, str]] = None,
+    field_min_scores: Optional[Dict[str, float]] = None
 ) -> UserSearchQueryBuilder:
     """
     Factory function to create UserSearchQueryBuilder instance.
-    
+
     Args:
         field_boosts: Dictionary mapping field names to boost values
-        fuzziness: Fuzziness level (AUTO, 0, 1, 2)
-        
+        fuzziness: Global fuzziness level (AUTO, 0, 1, 2)
+        field_fuzziness: Optional dict of field-specific fuzziness overrides
+        field_min_scores: Optional dict of field-specific min_score thresholds
+
     Returns:
         UserSearchQueryBuilder instance
     """
     return UserSearchQueryBuilder(
         field_boosts=field_boosts,
-        fuzziness=fuzziness
+        fuzziness=fuzziness,
+        field_fuzziness=field_fuzziness,
+        field_min_scores=field_min_scores
     )
 

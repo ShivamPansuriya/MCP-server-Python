@@ -47,10 +47,20 @@ class UserSearchHandler:
         # Initialize Elasticsearch client
         self.es_client_wrapper = get_elasticsearch_client(es_host=es_host)
         
-        # Create query builder
+        # Create query builder with field-level overrides
+        field_fuzziness = {}
+        field_min_scores = {}
+        for field in self.config.get_enabled_fields():
+            if field.fuzziness is not None:
+                field_fuzziness[field.name] = field.fuzziness
+            if field.min_score is not None:
+                field_min_scores[field.name] = field.min_score
+
         self.query_builder = create_query_builder(
             field_boosts=self.config.get_field_boosts(),
-            fuzziness=self.config.fuzziness
+            fuzziness=self.config.fuzziness,
+            field_fuzziness=field_fuzziness,
+            field_min_scores=field_min_scores
         )
         
         logger.info(
