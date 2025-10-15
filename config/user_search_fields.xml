@@ -1,0 +1,94 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+User Search Field Priority Configuration
+
+This configuration defines the priority and boost values for fuzzy search across user fields.
+Fields are searched in the order defined, with boost values determining relevance scoring.
+
+Field Definitions:
+- name: The Elasticsearch field name (must match index mapping)
+- boost: Relevance boost multiplier (higher = more important)
+- enabled: Whether to include this field in search (true/false)
+
+Boost Value Guidelines:
+- 3.0+: Primary search fields (e.g., name)
+- 2.0-2.9: Secondary fields (e.g., email, userlogonname)
+- 1.0-1.9: Tertiary fields (e.g., contact numbers)
+- <1.0: Low priority fields
+
+Fuzziness Settings:
+- fuzziness: Controls typo tolerance (AUTO, 0, 1, 2)
+  * AUTO: Elasticsearch auto-adjusts based on term length (recommended)
+  * 0: Exact match only
+  * 1: Allow 1 character difference
+  * 2: Allow 2 character differences
+
+Limit Settings:
+- defaultLimit: Default number of results to return (can be overridden by tool parameter)
+- maxLimit: Maximum number of results allowed (hard limit, cannot be exceeded)
+
+Score Filtering:
+- minScore: Minimum confidence score threshold
+  * Set to 0 to disable score filtering (return all matches)
+  * Set to positive value (e.g., 7.0) to filter out low-confidence matches
+  * Can be overridden by tool parameter
+  * Higher values = more strict filtering (only high-confidence matches)
+-->
+<userSearchConfig>
+    <!-- Fuzziness configuration for all fields -->
+    <fuzziness>AUTO</fuzziness>
+
+    <!-- Default number of results to return (can be overridden by tool parameter) -->
+    <defaultLimit>10</defaultLimit>
+
+    <!-- Maximum number of results allowed (hard limit) -->
+    <maxLimit>100</maxLimit>
+
+    <!-- Minimum confidence score threshold (filters out low-confidence matches) -->
+    <!-- Set to 0 or omit to disable score filtering -->
+    <minScore>0</minScore>
+
+    <!-- Search fields in priority order -->
+    <searchFields>
+        <!-- Primary field: User's full name -->
+        <field>
+            <name>user_name</name>
+            <boost>3.0</boost>
+            <enabled>true</enabled>
+            <description>User's full name (highest priority)</description>
+        </field>
+        
+        <!-- Secondary field: Email address -->
+        <field>
+            <name>user_email</name>
+            <boost>2.5</boost>
+            <enabled>true</enabled>
+            <description>User's email address</description>
+        </field>
+        
+        <!-- Secondary field: User logon name -->
+        <field>
+            <name>user_userlogonname</name>
+            <boost>2.0</boost>
+            <enabled>true</enabled>
+            <description>User's login/logon name</description>
+        </field>
+        
+        <!-- Tertiary field: Primary contact number -->
+        <field>
+            <name>user_contact</name>
+            <boost>1.5</boost>
+            <enabled>true</enabled>
+            <description>User's primary contact number</description>
+        </field>
+        
+        <!-- Tertiary field: Secondary contact number -->
+        <field>
+            <name>user_contact2</name>
+            <boost>1.0</boost>
+            <enabled>true</enabled>
+            <description>User's secondary contact number</description>
+        </field>
+    </searchFields>
+</userSearchConfig>
+

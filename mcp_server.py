@@ -17,6 +17,9 @@ from fastmcp import FastMCP
 from api_client import FormSchemaClient
 from dynamic_tool_manager import DynamicToolManager
 from dynamic_tool_middleware import DynamicToolMiddleware
+from search_users_tool import search_users as search_users_impl
+from elasticsearch_client import get_elasticsearch_client
+from user_type_enum import UserType
 
 # Configure logging
 logging.basicConfig(
@@ -53,6 +56,18 @@ dynamic_middleware = DynamicToolMiddleware(
 )
 mcp.add_middleware(dynamic_middleware)
 logger.info("Dynamic tool middleware registered")
+
+# Initialize Elasticsearch client for user search
+logger.info("Initializing Elasticsearch client for user search...")
+try:
+    es_client_wrapper = get_elasticsearch_client()
+    if es_client_wrapper.connect():
+        logger.info("Elasticsearch client connected successfully")
+    else:
+        logger.warning("Elasticsearch client failed to connect - search_users tool may not work")
+except Exception as e:
+    logger.error(f"Error initializing Elasticsearch client: {e}", exc_info=True)
+    logger.warning("search_users tool will be available but may fail at runtime")
 
 @mcp.tool
 def add(a: int, b: int) -> int:
@@ -95,6 +110,48 @@ def multiply(a: int, b: int) -> int:
         The product of a and b
     """
     return a * b
+
+
+@mcp.tool
+async def search_users(
+    name: str = None,
+    email: str = None,
+    contact: str = None,
+    userlogonname: str = None,
+    contact2: str = None,
+    userType: UserType = None,
+    limit: int = 10,
+    minScore: float = None
+) -> dict:
+    """
+    Search for users using fuzzy matching on specific fields.
+
+    Searches user records by specific fields with fuzzy matching for typo tolerance.
+    At least one search field must be provided.
+
+    Args:
+        name: Search by user's full name
+        email: Search by email address
+        contact: Search by primary contact number
+        userlogonname: Search by user login name
+        contact2: Search by secondary contact number
+        userType: Optional filter by user type. Valid values: "requester" or "technician"
+        limit: Maximum number of results to return (1-100, default: 10)
+        minScore: Minimum confidence score threshold. Only return users with score >= this value (e.g., 7.0)
+
+    Returns:
+        Dictionary containing search results with user information
+    """
+    return await search_users_impl(
+        name=name,
+        email=email,
+        contact=contact,
+        userlogonname=userlogonname,
+        contact2=contact2,
+        userType=userType,
+        limit=limit,
+        minScore=minScore
+    )
 
 
 # NOTE: The create_request tool is now dynamically generated per-user
