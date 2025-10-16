@@ -18,7 +18,7 @@ from api_client import FormSchemaClient
 from dynamic_tool_manager import DynamicToolManager
 from dynamic_tool_middleware import DynamicToolMiddleware
 from search_users_tool import search_users as search_users_impl
-from elasticsearch_client import get_elasticsearch_client
+from search_entities_tool import search_entities, get_supported_entity_types, get_entity_fields
 from user_type_enum import UserType
 
 # Configure logging
@@ -57,17 +57,17 @@ dynamic_middleware = DynamicToolMiddleware(
 mcp.add_middleware(dynamic_middleware)
 logger.info("Dynamic tool middleware registered")
 
-# Initialize Elasticsearch client for user search
-logger.info("Initializing Elasticsearch client for user search...")
+# Initialize elasticsearch search library
+logger.info("Initializing Elasticsearch search library...")
 try:
-    es_client_wrapper = get_elasticsearch_client()
-    if es_client_wrapper.connect():
-        logger.info("Elasticsearch client connected successfully")
-    else:
-        logger.warning("Elasticsearch client failed to connect - search_users tool may not work")
+    from elasticsearch_search_lib import SearchClient
+    # Create search client with default tenant
+    search_client = SearchClient(tenant_id="apolo")
+    logger.info(f"Search library initialized with {len(search_client.get_supported_entities())} entity types")
 except Exception as e:
-    logger.error(f"Error initializing Elasticsearch client: {e}", exc_info=True)
-    logger.warning("search_users tool will be available but may fail at runtime")
+    logger.error(f"Error initializing search library: {e}", exc_info=True)
+    logger.warning("Search tools will be available but may fail at runtime")
+    search_client = None
 
 @mcp.tool
 def add(a: int, b: int) -> int:
@@ -113,45 +113,40 @@ def multiply(a: int, b: int) -> int:
 
 
 @mcp.tool
-async def search_users(
-    name: str = None,
-    email: str = None,
-    contact: str = None,
-    userlogonname: str = None,
-    contact2: str = None,
-    userType: UserType = None,
-    limit: int = 10,
-    minScore: float = None
-) -> dict:
+async def search_users(query: str) -> dict:
     """
-    Search for users using fuzzy matching on specific fields.
+    Search for users using a simple query string.
 
-    Searches user records by specific fields with fuzzy matching for typo tolerance.
-    At least one search field must be provided.
+    Simplified search function that accepts only a query string.
+    All other parameters (limit, tenant_id, etc.) are handled internally
+    through configuration and defaults.
 
     Args:
-        name: Search by user's full name
-        email: Search by email address
-        contact: Search by primary contact number
-        userlogonname: Search by user login name
-        contact2: Search by secondary contact number
-        userType: Optional filter by user type. Valid values: "requester" or "technician"
-        limit: Maximum number of results to return (1-100, default: 10)
-        minScore: Minimum confidence score threshold. Only return users with score >= this value (e.g., 7.0)
+        query: Search query string (e.g., "ANUJKUMARJ28@GMAIL.COM", "John Doe", "9876543210")
 
     Returns:
         Dictionary containing search results with user information
     """
-    return await search_users_impl(
-        name=name,
-        email=email,
-        contact=contact,
-        userlogonname=userlogonname,
-        contact2=contact2,
-        userType=userType,
-        limit=limit,
-        minScore=minScore
-    )
+    return await search_users_impl(query)
+
+
+@mcp.tool
+async def search_entities_by_type(entity_type: str, query: str) -> dict:
+    """
+    Search for entities of any type using a unified approach.
+
+    This function can search across all supported entity types using
+    the same unified query builder and search handler.
+
+    Args:
+        entity_type: Type of entity to search (user, impact, urgency, priority,
+                    status, category, source, location, department, usergroup, vendor)
+        query: Search query string
+
+    Returns:
+        Dictionary containing search results with entity information
+    """
+    return await search_entities(entity_type, query)
 
 
 # NOTE: The create_request tool is now dynamically generated per-user

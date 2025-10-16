@@ -1,0 +1,370 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+Elasticsearch Search Library Configuration
+Entity-level configuration for all 11 ITSM entity types
+
+Supported Entity Types:
+- Simple: Impact, Urgency, Priority
+- Model-Based: Status, Category, Source
+- Hierarchical: Location, Department
+- Complex: UserGroup, User, Vendor
+
+Each entity has its own:
+- fuzziness: Fuzzy matching tolerance (0, 1, 2, AUTO)
+- defaultLimit: Default number of results to return
+- maxLimit: Maximum allowed results
+- minScore: Minimum relevance score threshold
+-->
+<elasticsearchConfig>
+    <entities>
+        <!-- ========================================
+             SIMPLE ENTITIES (name, id only)
+             ======================================== -->
+
+        <!-- IMPACT ENTITY -->
+        <entity type="impact">
+            <fuzziness>AUTO</fuzziness>
+            <defaultLimit>10</defaultLimit>
+            <maxLimit>100</maxLimit>
+            <minScore>0.0</minScore>
+            <fields>
+                <field>
+                    <name>impact_name</name>
+                    <boost>3.0</boost>
+                    <enabled>true</enabled>
+                    <fuzziness>AUTO</fuzziness>
+                </field>
+                <field>
+                    <name>impact_id</name>
+                    <boost>2.0</boost>
+                    <enabled>true</enabled>
+                    <fuzziness>0</fuzziness>
+                </field>
+            </fields>
+        </entity>
+
+        <!-- URGENCY ENTITY -->
+        <entity type="urgency">
+            <fuzziness>AUTO</fuzziness>
+            <defaultLimit>10</defaultLimit>
+            <maxLimit>100</maxLimit>
+            <minScore>0.0</minScore>
+            <fields>
+                <field>
+                    <name>urgency_name</name>
+                    <boost>3.0</boost>
+                    <enabled>true</enabled>
+                    <fuzziness>AUTO</fuzziness>
+                </field>
+                <field>
+                    <name>urgency_id</name>
+                    <boost>2.0</boost>
+                    <enabled>true</enabled>
+                    <fuzziness>0</fuzziness>
+                </field>
+            </fields>
+        </entity>
+
+        <!-- PRIORITY ENTITY -->
+        <entity type="priority">
+            <fuzziness>AUTO</fuzziness>
+            <defaultLimit>10</defaultLimit>
+            <maxLimit>100</maxLimit>
+            <minScore>0.0</minScore>
+            <fields>
+                <field>
+                    <name>priority_name</name>
+                    <boost>3.0</boost>
+                    <enabled>true</enabled>
+                    <fuzziness>AUTO</fuzziness>
+                </field>
+                <field>
+                    <name>priority_id</name>
+                    <boost>2.0</boost>
+                    <enabled>true</enabled>
+                    <fuzziness>0</fuzziness>
+                </field>
+            </fields>
+        </entity>
+
+        <!-- ========================================
+             MODEL-BASED ENTITIES (name, id, model)
+             ======================================== -->
+
+        <!-- STATUS ENTITY -->
+        <entity type="status">
+            <fuzziness>AUTO</fuzziness>
+            <defaultLimit>10</defaultLimit>
+            <maxLimit>100</maxLimit>
+            <minScore>0.0</minScore>
+            <fields>
+                <field>
+                    <name>status_name</name>
+                    <boost>3.0</boost>
+                    <enabled>true</enabled>
+                    <fuzziness>AUTO</fuzziness>
+                </field>
+                <field>
+                    <name>status_id</name>
+                    <boost>2.0</boost>
+                    <enabled>true</enabled>
+                    <fuzziness>0</fuzziness>
+                </field>
+                <field>
+                    <name>status_model</name>
+                    <boost>1.5</boost>
+                    <enabled>true</enabled>
+                    <fuzziness>AUTO</fuzziness>
+                </field>
+            </fields>
+        </entity>
+
+        <!-- CATEGORY ENTITY -->
+        <entity type="category">
+            <fuzziness>AUTO</fuzziness>
+            <defaultLimit>10</defaultLimit>
+            <maxLimit>100</maxLimit>
+            <minScore>0.0</minScore>
+            <fields>
+                <field>
+                    <name>category_name</name>
+                    <boost>3.0</boost>
+                    <enabled>true</enabled>
+                    <fuzziness>AUTO</fuzziness>
+                </field>
+                <field>
+                    <name>category_id</name>
+                    <boost>2.0</boost>
+                    <enabled>true</enabled>
+                    <fuzziness>0</fuzziness>
+                </field>
+                <field>
+                    <name>category_model</name>
+                    <boost>1.5</boost>
+                    <enabled>true</enabled>
+                    <fuzziness>AUTO</fuzziness>
+                </field>
+            </fields>
+        </entity>
+
+        <!-- SOURCE ENTITY -->
+        <entity type="source">
+            <fuzziness>AUTO</fuzziness>
+            <defaultLimit>10</defaultLimit>
+            <maxLimit>100</maxLimit>
+            <minScore>0.0</minScore>
+            <fields>
+                <field>
+                    <name>source_name</name>
+                    <boost>3.0</boost>
+                    <enabled>true</enabled>
+                    <fuzziness>AUTO</fuzziness>
+                </field>
+                <field>
+                    <name>source_id</name>
+                    <boost>2.0</boost>
+                    <enabled>true</enabled>
+                    <fuzziness>0</fuzziness>
+                </field>
+                <field>
+                    <name>source_model</name>
+                    <boost>1.5</boost>
+                    <enabled>true</enabled>
+                    <fuzziness>AUTO</fuzziness>
+                </field>
+            </fields>
+        </entity>
+
+        <!-- ========================================
+             HIERARCHICAL ENTITIES (hierarchy, parent/child)
+             ======================================== -->
+
+        <!-- LOCATION ENTITY -->
+        <entity type="location">
+            <fuzziness>AUTO</fuzziness>
+            <defaultLimit>10</defaultLimit>
+            <maxLimit>100</maxLimit>
+            <minScore>0.0</minScore>
+            <fields>
+                <field>
+                    <name>location_name</name>
+                    <boost>3.0</boost>
+                    <enabled>true</enabled>
+                    <fuzziness>AUTO</fuzziness>
+                </field>
+                <field>
+                    <name>location_id</name>
+                    <boost>2.0</boost>
+                    <enabled>true</enabled>
+                    <fuzziness>0</fuzziness>
+                </field>
+                <field>
+                    <name>location_hierarchy</name>
+                    <boost>2.5</boost>
+                    <enabled>true</enabled>
+                    <fuzziness>AUTO</fuzziness>
+                </field>
+                <field>
+                    <name>location_parentId</name>
+                    <boost>1.0</boost>
+                    <enabled>true</enabled>
+                    <fuzziness>0</fuzziness>
+                </field>
+            </fields>
+        </entity>
+
+        <!-- DEPARTMENT ENTITY -->
+        <entity type="department">
+            <fuzziness>AUTO</fuzziness>
+            <defaultLimit>10</defaultLimit>
+            <maxLimit>100</maxLimit>
+            <minScore>0.0</minScore>
+            <fields>
+                <field>
+                    <name>department_name</name>
+                    <boost>3.0</boost>
+                    <enabled>true</enabled>
+                    <fuzziness>AUTO</fuzziness>
+                </field>
+                <field>
+                    <name>department_id</name>
+                    <boost>2.0</boost>
+                    <enabled>true</enabled>
+                    <fuzziness>0</fuzziness>
+                </field>
+                <field>
+                    <name>department_hierarchy</name>
+                    <boost>2.5</boost>
+                    <enabled>true</enabled>
+                    <fuzziness>AUTO</fuzziness>
+                </field>
+                <field>
+                    <name>department_parentId</name>
+                    <boost>1.0</boost>
+                    <enabled>true</enabled>
+                    <fuzziness>0</fuzziness>
+                </field>
+            </fields>
+        </entity>
+
+        <!-- ========================================
+             COMPLEX ENTITIES (multiple custom fields)
+             ======================================== -->
+
+        <!-- USERGROUP ENTITY -->
+        <entity type="usergroup">
+            <fuzziness>AUTO</fuzziness>
+            <defaultLimit>10</defaultLimit>
+            <maxLimit>100</maxLimit>
+            <minScore>0.0</minScore>
+            <fields>
+                <field>
+                    <name>usergroup_name</name>
+                    <boost>3.0</boost>
+                    <enabled>true</enabled>
+                    <fuzziness>AUTO</fuzziness>
+                </field>
+                <field>
+                    <name>usergroup_id</name>
+                    <boost>2.0</boost>
+                    <enabled>true</enabled>
+                    <fuzziness>0</fuzziness>
+                </field>
+                <field>
+                    <name>usergroup_description</name>
+                    <boost>1.5</boost>
+                    <enabled>true</enabled>
+                    <fuzziness>AUTO</fuzziness>
+                </field>
+            </fields>
+        </entity>
+
+        <!-- USER ENTITY -->
+        <entity type="user">
+            <fuzziness>AUTO</fuzziness>
+            <defaultLimit>10</defaultLimit>
+            <maxLimit>100</maxLimit>
+            <minScore>0.0</minScore>
+            <fields>
+                <field>
+                    <name>user_name</name>
+                    <boost>3.0</boost>
+                    <enabled>true</enabled>
+                    <fuzziness>AUTO</fuzziness>
+                </field>
+                <field>
+                    <name>user_email</name>
+                    <boost>2.5</boost>
+                    <enabled>true</enabled>
+                    <fuzziness>0</fuzziness>
+                </field>
+                <field>
+                    <name>user_contact</name>
+                    <boost>2.0</boost>
+                    <enabled>true</enabled>
+                    <fuzziness>0</fuzziness>
+                </field>
+                <field>
+                    <name>user_userlogonname</name>
+                    <boost>2.0</boost>
+                    <enabled>true</enabled>
+                    <fuzziness>0</fuzziness>
+                </field>
+                <field>
+                    <name>user_contact2</name>
+                    <boost>1.5</boost>
+                    <enabled>true</enabled>
+                    <fuzziness>0</fuzziness>
+                </field>
+                <field>
+                    <name>user_type</name>
+                    <boost>1.0</boost>
+                    <enabled>true</enabled>
+                    <fuzziness>0</fuzziness>
+                </field>
+            </fields>
+        </entity>
+
+        <!-- VENDOR ENTITY -->
+        <entity type="vendor">
+            <fuzziness>AUTO</fuzziness>
+            <defaultLimit>10</defaultLimit>
+            <maxLimit>100</maxLimit>
+            <minScore>0.0</minScore>
+            <fields>
+                <field>
+                    <name>vendor_name</name>
+                    <boost>3.0</boost>
+                    <enabled>true</enabled>
+                    <fuzziness>AUTO</fuzziness>
+                </field>
+                <field>
+                    <name>vendor_id</name>
+                    <boost>2.0</boost>
+                    <enabled>true</enabled>
+                    <fuzziness>0</fuzziness>
+                </field>
+                <field>
+                    <name>vendor_email</name>
+                    <boost>2.5</boost>
+                    <enabled>true</enabled>
+                    <fuzziness>0</fuzziness>
+                </field>
+                <field>
+                    <name>vendor_contact</name>
+                    <boost>2.0</boost>
+                    <enabled>true</enabled>
+                    <fuzziness>0</fuzziness>
+                </field>
+                <field>
+                    <name>vendor_description</name>
+                    <boost>1.5</boost>
+                    <enabled>true</enabled>
+                    <fuzziness>AUTO</fuzziness>
+                </field>
+            </fields>
+        </entity>
+
+    </entities>
+</elasticsearchConfig>
+

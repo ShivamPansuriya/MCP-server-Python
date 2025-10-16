@@ -1,30 +1,39 @@
 """
 Search Users MCP Tool
 
-Provides fuzzy search functionality for users via Elasticsearch.
+Simplified search functionality using the elasticsearch search library.
+Now accepts only a query string as input parameter.
 """
 
 import logging
-from typing import Optional, Dict, Any
+from typing import Dict, Any
 
-from user_search_handler import get_search_handler
+from elasticsearch_search_lib import SearchClient
 
 logger = logging.getLogger(__name__)
 
+# Global search client instance
+_search_client = None
 
-async def search_users(
-    query: str,
-    limit: int = 3
-) -> Dict[str, Any]:
+
+def get_search_client() -> SearchClient:
+    """Get or create search client instance."""
+    global _search_client
+    if _search_client is None:
+        _search_client = SearchClient(tenant_id="apolo")
+    return _search_client
+
+
+async def search_users(query: str) -> Dict[str, Any]:
     """
-    Search for users using a simple query string across all enabled fields.
+    Search for users using a simple query string.
 
-    Searches user records across all enabled fields (name, email, contact, etc.)
-    and returns the top 3 most relevant results.
+    Simplified search function that accepts only a query string.
+    All other parameters (limit, tenant_id, etc.) are handled internally
+    through configuration and defaults.
 
     Args:
         query: Search query string (e.g., "ANUJKUMARJ28@GMAIL.COM", "John Doe", "9876543210")
-        limit: Maximum number of results to return (1-10, default: 3)
 
     Returns:
         Dictionary containing:
@@ -45,16 +54,13 @@ async def search_users(
 
     Examples:
         Search by email:
-        >>> search_users(query="ANUJKUMARJ28@GMAIL.COM")
+        >>> search_users("ANUJKUMARJ28@GMAIL.COM")
 
         Search by name:
-        >>> search_users(query="John Doe")
+        >>> search_users("John Doe")
 
         Search by contact:
-        >>> search_users(query="9876543210")
-
-        Search with custom limit:
-        >>> search_users(query="Smith", limit=5)
+        >>> search_users("9876543210")
     """
     try:
         # Validate query is provided
@@ -68,19 +74,51 @@ async def search_users(
                 "users": []
             }
 
-        # Validate and normalize limit
-        if limit < 1 or limit > 10:
-            logger.warning(f"Invalid limit {limit}, clamping to range [1, 10]")
-            limit = max(1, min(limit, 10))
+        logger.info(f"search_users tool called: query='{query}'")
 
-        logger.info(f"search_users tool called: query='{query}', limit={limit}")
+        # Get search client and execute search
+        client = get_search_client()
 
-        # Get search handler and execute search
-        handler = get_search_handler()
-        results = await handler.search_users_by_query(
+        # Use default limit of 3 for user searches
+        search_response = await client.search(
+            entity_type="user",
             query=query,
-            limit=limit
+            limit=3  # Default limit for user searches
         )
+
+        # Convert search response to expected format
+        if search_response.success:
+            users = []
+            for result in search_response.items:
+                user_data = result.data
+                user = {
+                    "id": user_data.get("user_id") or user_data.get("dbid"),
+                    "name": user_data.get("user_name"),
+                    "email": user_data.get("user_email"),
+                    "contact": user_data.get("user_contact"),
+                    "userlogonname": user_data.get("user_userlogonname"),
+                    "contact2": user_data.get("user_contact2"),
+                    "usertype": user_data.get("user_type"),
+                    "score": result.score
+                }
+                users.append(user)
+
+            results = {
+                "success": True,
+                "query": query,
+                "total_hits": search_response.total_hits,
+                "returned_count": len(users),
+                "users": users
+            }
+        else:
+            results = {
+                "success": False,
+                "error": search_response.error or 'Search failed',
+                "query": query,
+                "total_hits": 0,
+                "returned_count": 0,
+                "users": []
+            }
 
         logger.info(
             f"search_users completed: success={results.get('success')}, "
