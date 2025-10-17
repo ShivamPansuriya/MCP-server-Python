@@ -15,6 +15,7 @@ This client:
 """
 
 import json
+import re
 import requests
 import websocket
 import threading
@@ -23,6 +24,7 @@ import logging
 import os
 from typing import Dict, Any, Optional
 from urllib.parse import urlparse
+from stompest.protocol import StompParser
 
 logger = logging.getLogger(__name__)
 
@@ -46,7 +48,7 @@ class HierarchyCacheWebSocketClient:
     ):
         """
         Initialize the WebSocket client.
-        
+
         Args:
             cache_manager: HierarchyCacheManager instance for cache updates
             server_url: Base URL of the Motadata server (e.g., https://your-server.com)
@@ -67,6 +69,9 @@ class HierarchyCacheWebSocketClient:
         self.reconnect_attempts = 0
         self.max_reconnect_attempts = 10
         self.reconnect_delay = 5  # seconds
+
+        # Initialize STOMP parser for protocol-compliant frame parsing
+        self.stomp_parser = StompParser(version='1.2')
         
     def authenticate(self) -> str:
         """
@@ -132,43 +137,69 @@ class HierarchyCacheWebSocketClient:
     
     def on_message(self, ws, message):
         """
-        Handle incoming WebSocket messages.
-        
+        Handle incoming WebSocket messages using stompest protocol parser.
+
         Args:
             ws: WebSocket instance
             message: Raw message string
         """
         logger.debug(f"Received raw message: {message[:200]}...")
-        
-        # Parse STOMP frame
-        if message.startswith("CONNECTED"):
-            logger.info("✅ STOMP connection established")
-            self.connected = True
-            self.reconnect_attempts = 0
-            self.connection_established.set()
-            
-        elif message.startswith("MESSAGE"):
-            # Extract message body from STOMP frame
-            lines = message.split('\n')
-            body_start = False
-            for line in lines:
-                if body_start and line.strip():
+
+        # Handle heartbeat (just a newline)
+        if message == '\n':
+            logger.debug("Heartbeat received")
+            return
+
+        try:
+            # The server sends incorrect content-length headers, so we remove them
+            # to let stompest parse based on the null terminator instead
+            message_cleaned = re.sub(r'content-length:[^\n]*\n', '', message, flags=re.IGNORECASE)
+
+            # Convert to bytes if needed (websocket-client may send strings)
+            message_bytes = message_cleaned.encode('utf-8') if isinstance(message_cleaned, str) else message_cleaned
+
+            # Feed message to STOMP parser
+            self.stomp_parser.add(message_bytes)
+
+            # Process all available frames
+            while self.stomp_parser.canRead():
+                frame = self.stomp_parser.get()
+
+                if frame.command == 'CONNECTED':
+                    logger.info("✅ STOMP connection established")
+                    logger.debug(f"CONNECTED headers: {frame.headers}")
+                    self.connected = True
+                    self.reconnect_attempts = 0
+                    self.connection_established.set()
+
+                elif frame.command == 'MESSAGE':
+                    logger.debug(f"MESSAGE headers: {frame.headers}")
+
+                    # Parse JSON body
                     try:
-                        payload = json.loads(line)
-                        self.handle_entity_update(payload)
+                        if frame.body:
+                            body_str = frame.body.decode('utf-8')
+                            logger.debug(f"Extracted JSON body: {body_str}")
+                            payload = json.loads(body_str)
+                            logger.info(f"✅ Parsed payload: {payload}")
+                            self.handle_entity_update(payload)
+                        else:
+                            logger.warning("MESSAGE frame has empty body")
                     except json.JSONDecodeError as e:
                         logger.error(f"Failed to parse JSON payload: {e}")
-                        logger.debug(f"Problematic line: {line}")
-                    break
-                if line == '':
-                    body_start = True
-                    
-        elif message.startswith("ERROR"):
-            logger.error(f"STOMP error received: {message}")
-            
-        elif message == '\n':
-            # Heartbeat
-            logger.debug("Heartbeat received")
+                        logger.debug(f"Frame body: {frame.body}")
+
+                elif frame.command == 'ERROR':
+                    logger.error(f"STOMP ERROR frame received")
+                    logger.error(f"Headers: {frame.headers}")
+                    logger.error(f"Body: {frame.body.decode('utf-8') if frame.body else 'N/A'}")
+
+                else:
+                    logger.debug(f"Received STOMP frame: {frame.command}")
+
+        except Exception as e:
+            logger.error(f"Error parsing STOMP frame: {e}", exc_info=True)
+            logger.debug(f"Raw message: {message}")
     
     def handle_entity_update(self, payload: Dict[str, Any]):
         """
@@ -192,6 +223,8 @@ class HierarchyCacheWebSocketClient:
             entity_id = payload.get('id')
             parent_id = payload.get('parentId', 0)  # Default to 0 if not provided
             name = payload.get('name')
+            model = payload.get('model')
+            removed = payload.get('removed', False)
 
             if entity_id is None or name is None:
                 logger.warning(f"Incomplete entity update payload: {payload}")
@@ -200,18 +233,59 @@ class HierarchyCacheWebSocketClient:
             logger.info(f"Received entity update: id={entity_id}, name='{name}', parentId={parent_id}")
 
             # Try updating both caches - the entity will exist in one of them
-            location_updated = self.handle_location_update(entity_id, name, parent_id)
-            department_updated = self.handle_department_update(entity_id, name, parent_id)
-
-            if not location_updated and not department_updated:
-                logger.warning(
-                    f"Entity {entity_id} not found in either Location or Department cache. "
-                    f"This might be a new entity that hasn't been loaded into cache yet."
-                )
+            if model == "location":
+                if removed:
+                    self.handle_location_remove(entity_id, name, parent_id)
+                else:
+                    self.handle_location_update(entity_id, name, parent_id)
+            else:
+                if removed:
+                    self.handle_department_remove(entity_id, name, parent_id)
+                else:
+                    self.handle_department_update(entity_id, name, parent_id)
 
         except Exception as e:
             logger.error(f"Error handling entity update: {e}", exc_info=True)
 
+    def handle_location_remove(self, entity_id: int, name: str, parent_id: int) -> bool:
+        """
+        Handle Location entity remove.
+
+        Args:
+            entity_id: Location ID
+            name: Location name
+            parent_id: Parent location ID (0 for root)
+
+        Returns:
+            True if location was remove, False if not found in cache
+        """
+        try:
+            if not self.cache_manager or not self.cache_manager.is_initialized():
+                logger.warning("Cache manager not initialized, cannot remove location")
+                return False
+
+            location_cache = self.cache_manager.get_location_cache()
+            if not location_cache:
+                logger.warning("Location cache not available")
+                return False
+
+            # Convert parent_id of 0 to None for root nodes
+            parent_id_value = None if parent_id == 0 else parent_id
+
+            # Update the node in cache
+            success = location_cache.remove_node(entity_id, name, parent_id_value)
+
+            if success:
+                logger.info(f"✅ remove Location cache: id={entity_id}, name='{name}', parent={parent_id}")
+                # Rebuild indices and paths for updated cache
+                location_cache._build_indices()
+                location_cache._compute_paths()
+
+            return success
+
+        except Exception as e:
+            logger.error(f"Error remove location {entity_id}: {e}", exc_info=True)
+            return False
     def handle_location_update(self, entity_id: int, name: str, parent_id: int) -> bool:
         """
         Handle Location entity update.
@@ -251,6 +325,47 @@ class HierarchyCacheWebSocketClient:
         except Exception as e:
             logger.error(f"Error updating location {entity_id}: {e}", exc_info=True)
             return False
+
+    def handle_department_remove(self, entity_id: int, name: str, parent_id: int) -> bool:
+        """
+        Handle Department entity remove.
+
+        Args:
+            entity_id: Department ID
+            name: Department name
+            parent_id: Parent department ID (0 for root)
+
+        Returns:
+            True if department was remove, False if not found in cache
+        """
+        try:
+            if not self.cache_manager or not self.cache_manager.is_initialized():
+                logger.warning("Cache manager not initialized, cannot remove department")
+                return False
+
+            department_cache = self.cache_manager.get_department_cache()
+            if not department_cache:
+                logger.warning("Department cache not available")
+                return False
+
+            # Convert parent_id of 0 to None for root nodes
+            parent_id_value = None if parent_id == 0 else parent_id
+
+            # Update the node in cache
+            success = department_cache.remove_node(entity_id, name, parent_id_value)
+
+            if success:
+                logger.info(f"✅ Updated Department cache: id={entity_id}, name='{name}', parent={parent_id}")
+                # Rebuild indices and paths for remove cache
+                department_cache._build_indices()
+                department_cache._compute_paths()
+
+            return success
+
+        except Exception as e:
+            logger.error(f"Error remove department {entity_id}: {e}", exc_info=True)
+            return False
+
 
     def handle_department_update(self, entity_id: int, name: str, parent_id: int) -> bool:
         """

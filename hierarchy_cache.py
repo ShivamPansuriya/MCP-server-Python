@@ -110,27 +110,29 @@ class HierarchicalCache:
 
     def update_node(self, id_: Union[str, int], name: str, parent_id: Optional[Union[str, int]] = None) -> bool:
         """
-        Update an existing node in the cache.
+        Update an existing node in the cache, or add it if it doesn't exist (upsert).
 
         This method replaces an existing node's name and parent_id while maintaining
-        cache integrity. All related indices and tracking structures are updated.
+        cache integrity. If the node doesn't exist, it will be added to the cache.
+        All related indices and tracking structures are updated.
 
         Args:
-            id_: Unique entity identifier of the node to update
+            id_: Unique entity identifier of the node to update/add
             name: New entity name
             parent_id: New parent entity ID (None for root nodes)
 
         Returns:
-            True if node was updated successfully, False if node doesn't exist
+            True if node was updated/added successfully
 
         Example:
             >>> cache.update_node(123, "New York Office", parent_id=100)
             True
         """
-        # Check if node exists
+        # Check if node exists - if not, add it
         if id_ not in self.nodes_by_id:
-            logger.warning(f"Cannot update node {id_}: node not found in cache")
-            return False
+            logger.debug(f"Node {id_} not found in cache, adding it")
+            self.add_node(name, id_, parent_id)
+            return True
 
         old_node = self.nodes_by_id[id_]
         old_name = old_node.name
@@ -176,6 +178,81 @@ class HierarchicalCache:
             f"name '{old_name}' -> '{name}', "
             f"parent {old_parent_id} -> {parent_id}"
         )
+
+        return True
+
+    def remove_node(self, id_: Union[str, int]) -> bool:
+        """
+        Remove a node from the cache by its ID.
+
+        This method removes a node and updates all related indices and tracking structures.
+        If the node has children, they will be orphaned (parent_id set to None).
+
+        Args:
+            id_: Unique entity identifier of the node to remove
+
+        Returns:
+            True if node was removed successfully, False if node doesn't exist
+
+        Example:
+            >>> cache.remove_node(123)
+            True
+        """
+        # Check if node exists
+        if id_ not in self.nodes_by_id:
+            logger.warning(f"Cannot remove node {id_}: node not found in cache")
+            return False
+
+        node = self.nodes_by_id[id_]
+        node_name = node.name
+        node_parent_id = node.parent_id
+
+        # Handle children - orphan them by setting their parent_id to None
+        if id_ in self.children_by_parent:
+            child_ids = self.children_by_parent[id_].copy()
+            for child_id in child_ids:
+                if child_id in self.nodes_by_id:
+                    child_node = self.nodes_by_id[child_id]
+                    # Create new node with parent_id = None
+                    orphaned_node = HierarchicalNode(child_node.name, child_node.id, None)
+                    self.nodes_by_id[child_id] = orphaned_node
+
+            # Remove the children mapping
+            del self.children_by_parent[id_]
+            logger.warning(f"Orphaned {len(child_ids)} children of node {id_}")
+
+        # Remove from parent's children list
+        if node_parent_id is not None and node_parent_id in self.children_by_parent:
+            try:
+                self.children_by_parent[node_parent_id].remove(id_)
+                # Clean up empty lists
+                if not self.children_by_parent[node_parent_id]:
+                    del self.children_by_parent[node_parent_id]
+            except ValueError:
+                logger.warning(f"Node {id_} not found in children list of parent {node_parent_id}")
+
+        # Remove from name tracking
+        if node_name.lower() in self.name_to_ids:
+            try:
+                self.name_to_ids[node_name.lower()].remove(id_)
+                # Clean up empty lists
+                if not self.name_to_ids[node_name.lower()]:
+                    del self.name_to_ids[node_name.lower()]
+            except ValueError:
+                logger.warning(f"Node {id_} not found in name_to_ids for '{node_name}'")
+
+        # Remove from paths caches
+        self.paths_cache.pop(id_, None)
+        self.paths_name_cache.pop(id_, None)
+
+        # Remove from primary storage
+        del self.nodes_by_id[id_]
+
+        # Mark indices as needing rebuild
+        self._indices_built = False
+        self._paths_computed = False
+
+        logger.debug(f"Removed {self.entity_type} node {id_} ('{node_name}')")
 
         return True
 
